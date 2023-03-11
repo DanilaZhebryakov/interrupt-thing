@@ -28,16 +28,17 @@ Start:
     endp
     
     public UpdRegsWin
+    ;called from interrupt handler
     UpdRegsWin proc
         
-
         pusha
         mov bp, sp
         mov bx, ds
         push bx
         mov bx, es
         push bx
-        
+        hidemouseptr
+
         mov bx, cs
         mov ds, bx
 
@@ -49,8 +50,6 @@ Start:
             xor cx, cx
             mov bx, offset regs_win
             call UpdWindowBuffer
-            
-            
             
             mov di, cs
             mov es, di
@@ -76,7 +75,7 @@ Start:
             call UpdWindow ;also resets busy flag
 
         @@return:
-
+        displmouseptr
         pop bx
         mov es, bx
         pop bx
@@ -93,7 +92,7 @@ Start:
 
     main_start:
 
-        ;call RegisterEventHandlers
+        call RegisterEventHandlers
         call SetInterrupts
 
         mov bx, offset regs_win
@@ -137,6 +136,9 @@ Start:
             jnz wloop_int
         loop wloop
 
+        ;call RemoveEventHandlers
+        ;call RemoveInterrupts
+
         mov dx, offset program_end + 1
         int 27h
 
@@ -149,22 +151,6 @@ Start:
 
     regs_str db "ax:bx:cx:dx:si:di:sp:bp:ds:es:ss:"
     regs_stk_addr dw 14,8,12,10,2,0,6,4,-2,-4
-
-    main_color_attr db 02h
-
-    frm_x db 2
-    frm_y db 3
-
-    frm_h db 5
-    frm_w db 5
-
-    defaultmsg db "hell0"
-    defaultmsglen equ 5
-
-    charset_n db 9
-
-    msg_pos dw 0
-    msg_len db 0
     
     public free_mem
     free_mem db 1024 dup(0)
