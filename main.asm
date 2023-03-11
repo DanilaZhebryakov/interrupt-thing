@@ -12,6 +12,9 @@ extrn program_end:near
 
 org 100h
 
+regs_win_w equ 10
+regs_win_h equ 13
+
 Start:
     jmp main_start	    
     db "<main....>"
@@ -53,9 +56,9 @@ Start:
             
             mov di, cs
             mov es, di
-            mov di, offset regs_win_drawbuf + 26
+            mov di, offset regs_win_drawbuf + 2*(regs_win_w + 4) ;skip first line, |reg name:
 
-            mov cx, 10
+            mov cx, 10 ;regs count
             mov bx, offset regs_stk_addr
             mov ah, 02h ;color attr
             @@regs_out_loop:
@@ -66,7 +69,7 @@ Start:
                 push bx
                 call WriteHex
                 pop bx
-                add di, 10
+                add di, 2*(regs_win_w - 4) ;\n\r
                 mov cx, si
             loop @@regs_out_loop
             mov dx, ss
@@ -85,10 +88,10 @@ Start:
         ret
     endp
 
-    regs_win_drawbuf db 234 dup(0)
-    regs_win_savebuf db 234 dup(0)
+    regs_win_drawbuf db (regs_win_w * regs_win_h * 2) dup(0)
+    regs_win_savebuf db (regs_win_w * regs_win_h * 2) dup(0)
     public regs_win
-    regs_win window <,1,800,9,13,offset regs_win_drawbuf, offset regs_win_savebuf> ;9x10 window at (5,4) with btngroup 1 and two buffers
+    regs_win window <,1,800,regs_win_w, regs_win_h ,offset regs_win_drawbuf, offset regs_win_savebuf> ;window at (5,4) with btngroup 1 and two buffers
 
     main_start:
 
@@ -103,9 +106,9 @@ Start:
 
         mov di, ds
         mov es, di
-        mov di, offset regs_win_drawbuf + 20
+        mov di, offset regs_win_drawbuf + 2*(regs_win_w+1)
         mov si, offset regs_str
-        mov cx, 11
+        mov cx, 11 ;regs count
         @@rstr_loop:
             movsb
             inc di
@@ -113,7 +116,7 @@ Start:
             inc di
             movsb
             inc di
-            add di, 12
+            add di, 2*(regs_win_w-3) ;\n\r
         loop @@rstr_loop
 
         call UnhideWindow

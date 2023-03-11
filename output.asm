@@ -58,22 +58,21 @@ extrn free_mem:near
 	;    Entry: es:di - place on screen, ax = number, df = 0 for normal write
 	;    Exit: none
 	;    Expects: es = video memory segment
-	;    Destroys: ax, cx, dx
+	;    Destroys: ax, cx, dx, si
 	;
     public WriteDec
 	WriteDec proc
-
+        mov si, 10 ; base 10
         add di, 10 ; dechimals are written right-to-left, so need to move cursor
         mov cx, 5
         @@write_loop:
             xor dx, dx
-            div cs:@@ten
+            div si
             sub di, 2
             add dl, '0'
             mov es:[di], dl
         loop @@write_loop
         add di, 10
         ret
-        @@ten dw 10
         endp
 end

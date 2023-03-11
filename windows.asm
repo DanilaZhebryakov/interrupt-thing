@@ -8,7 +8,6 @@ include winstrct.inc
 .model tiny
 .code
 
-
 ; Entry: ds:dx = charset addr, ah = color attr ds:bx = window to initialize, cs:di = drag handler
 ; Exit: none
 ; Destroys: everything except bx, ds and stack
@@ -41,6 +40,7 @@ InitWindow proc
     xor dx, dx
     mov cx, 160
     div cx
+    shr dx, 1
     mov dh, al
     mov word ptr ds:[bx][btnx0], dx
     add dx, word ptr ds:[si][window_width]
@@ -124,6 +124,8 @@ endp
 ; Destroys: everything except stack and segments
 public UpdWindowBuffer
 UpdWindowBuffer proc
+    mov ax, 02h
+    int 33h
     or byte ptr ds:[bx][window_state], 1 ;normally you write something just after this, so window busy
     mov si, ds:[bx][window_drawbuf]
     mov di, ds:[bx][window_pos]
@@ -133,7 +135,10 @@ UpdWindowBuffer proc
     shl ax, 1
     mov bx, ds:[bx][window_savebuf]
     sub bx, si
-    jmp UpdSaveBuffer
+    call UpdSaveBuffer
+    mov ax, 01h
+    int 33h
+    ret
 endp
 
 ; Update save-buffer from screen changes
@@ -219,8 +224,21 @@ MoveWindow proc
 endp
 
 public BasicDragHandler
+; basic drag handler for windows
+; moves window at ds:bx by si at x and di at y (char pos) (this is the format this data is given to btn handler)
+; Expects btnstate-format flags at al, ds = program ds
+; Destroys everything except stack and ds, so pusha/popa needed
+; Event handler for each window should be defined, and given to its main button as event handler. No universal handler or window table exist.
+; Example handler:
+; example_wdh proc ;window drag handler
+;        pusha
+;        mov al, ds:[bx][btnstate]
+;        mov bx, offset example_win
+;        call BasicDragHandler
+;        popa
+;        ret
+;    endp
 BasicDragHandler proc
-   
     cmp di, 0
     jnz @@normal
     cmp si, 0
@@ -232,9 +250,10 @@ BasicDragHandler proc
     jz @@return
     test ds:[bx][window_state], 1 ;check if window is not busy
     jnz @@return
-
-    jmp MoveWindow
-    
+    hidemouseptr
+    call MoveWindow
+    displmouseptr
+    ret
 endp
 
 end

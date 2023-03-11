@@ -14,7 +14,11 @@ extrn UpdRegsWin:near
 
 .model tiny
 .code
-    db "<events....>"
+    public mouse_old_x
+    mouse_old_x dw 0
+    public mouse_old_y
+    mouse_old_y dw 0
+
     ; ax = event mask
     ; bx = btn state
     ; cx = x
@@ -22,10 +26,6 @@ extrn UpdRegsWin:near
     ; si = dx
     ; di = dy
     ; ds = mouse driver segment
-
-    mouse_old_x dw 0
-    mouse_old_y dw 0
-
     MouseHandler proc
         enter 12, 1
         @@mouse_x     equ   ss:[bp-2 ]
@@ -61,7 +61,7 @@ extrn UpdRegsWin:near
         add di, 2
         call WriteHex
 
-        mov ax, dx
+        mov ax, @@mouse_y
         shr ax, 3
         sub ax, mouse_old_y
         mov di, ax
@@ -98,6 +98,7 @@ extrn UpdRegsWin:near
             call BtnDragManager ;ah is saved by function
             pop dx
         @@btndragskip:
+
         mov byte ptr mouse_old_x, dl
         mov byte ptr mouse_old_y, dh
 
@@ -128,27 +129,26 @@ extrn UpdRegsWin:near
         retf
         endp
 
+    ; interrupt handler for int09h
     KeyboardHandler proc
         push ax
-        push bx
-        mov bx, es
-        push bx
 
         in al, 60h
 
         cmp al, 52h
         jz @@ins_press
 
-        cmp al, 3bh
+        cmp al, 52h + 08h
+        jz @@key_release
+
+        cmp al, 3Bh
         jz @@f1_press
         
-        cmp al, 0D2h
-        jz @@ins_rel
+        cmp al, 3Bh + 08h
+        jz @@key_release
+        
 
         @@oldint:
-        pop bx
-        mov es, bx
-        pop bx
         pop ax
 
         db 0EAh ;long jump
@@ -156,13 +156,14 @@ extrn UpdRegsWin:near
         old_keyboard_int_seg  dw 0
 
         @@f1_press:
-        mov bx, ds
-        push bx
-        mov bx, es
-        push bx
+        mov ax, ds
+        push ax
+        mov ax, es
+        push ax
         pusha
 
         call RegisterEventHandlers
+
         popa
         jmp @@return
 
@@ -174,43 +175,41 @@ extrn UpdRegsWin:near
 
             mov ax, cs
             mov ds, ax
-            setvmema
 
-            mov byte ptr es:[43], 30h
             mov ah, regs_win.window_state
             test ah, 1 ;window busy
             jnz @@return
+            setvmem
 
             pusha
             test ah, 2  ; window hiden
             jnz @@unhide_window
 
             @@hide_window:
+            ;hidemouseptr
             xor cx, cx ; bc UpdWindowBuffer expects ch=0
             mov bx, offset regs_win
             call UpdWindowBuffer
             mov bx, offset regs_win
             call HideWindow
+            ;displmouseptr
             popa
+            
             jmp @@return
             @@unhide_window:
+            ;hidemouseptr
             mov bx, offset regs_win
             call UnhideWindow
+            ;displmouseptr
             popa
             jmp @@return
-        @@ins_rel:
-            mov ax, ds ;push segments
-            push ax
-            mov ax, es
-            push ax
-            setvmema
-            mov byte ptr es:[43], 20h
 
         @@return:
         pop ax
         mov es, ax
         pop ax
-        mov ds, ax        
+        mov ds, ax     
+        @@key_release:
 
         in  al, 61h
         or  al, 80h
@@ -221,15 +220,12 @@ extrn UpdRegsWin:near
         mov al, 20h ; send EOI
         out 20h, al
 
-        pop bx
-        mov es, bx
-        pop bx
         pop ax
         iret     
         
     endp
 
-    bp_save dw 0
+    ;interrupt handler for int08h
     TimerHandler proc
         push bx  
         mov bx, es
@@ -239,7 +235,7 @@ extrn UpdRegsWin:near
         pop bx
         mov es, bx
         pop bx
-
+        
         call UpdRegsWin
 
         db 0EAh ;long jump
@@ -252,8 +248,8 @@ extrn UpdRegsWin:near
     ; Entry/exit : none
     ; Destroys: ax, bx, cx, dx, es
     RegisterEventHandlers proc
-        mov ax, 0001h ;display ptr
-        int 33h
+        ;mov ax, 0001h ;display ptr
+        ;int 33h
 
         mov bx, cs
         mov es, bx
@@ -276,9 +272,12 @@ extrn UpdRegsWin:near
     endp
 
     public RemoveEventHandlers
+    ; disables mouse event handler
+    ; Entry/exit : none
+    ; Destroys: ax, cx, dx, es
     RemoveEventHandlers proc
-        mov bx, cs
-        mov es, bx
+        mov ax, cs
+        mov es, ax
 
         mov ax, 000ch ; set event handler
         mov cx, 0     ; disable
@@ -287,8 +286,10 @@ extrn UpdRegsWin:near
 
         ret
     endp
-
+    
     public SetInterrupts
+    ; Entry/Exit: none
+    ; Destroys: bx, es
     SetInterrupts proc
         mov bx, 0
         mov es, bx
@@ -315,12 +316,20 @@ extrn UpdRegsWin:near
     endp
 
     public RemoveInterrupts
+    ; Entry/Exit: none
+    ; Destroys: bx, es
     RemoveInterrupts proc
+        mov bx, 0
+        mov es, bx
         cli
         mov bx, old_keyboard_int_seg
         mov word ptr es:[26h], bx
         mov bx, old_keyboard_int_offs
         mov word ptr es:[24h], bx
+        mov bx, old_timer_int_seg
+        mov word ptr es:[22h], bx
+        mov bx, old_timer_int_offs
+        mov word ptr es:[20h], bx
         sti
         ret
     endp
@@ -328,5 +337,4 @@ extrn UpdRegsWin:near
 
     old_mouse_event_mask dw 0
 
-    db "<....events>"
 end

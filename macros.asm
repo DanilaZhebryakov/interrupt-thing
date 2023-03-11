@@ -26,3 +26,11 @@ setvmema macro
     mov ax, 0B800h ;video memory segment
     mov es, ax
     endm
+displmouseptr macro
+    mov ax, 01h
+    int 33h
+    endm
+hidemouseptr macro
+    mov ax, 02h
+    int 33h
+    endm
